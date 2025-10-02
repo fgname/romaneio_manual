@@ -17,7 +17,7 @@ from reportlab.lib.styles import ParagraphStyle
 # ==========================
 # CONFIG
 # ==========================
-APP_TITLE       = "Romaneio Manual — OneDrive (FINALIZADOS)"
+APP_TITLE       = "Romaneio Manual — Tecadi (FINALIZADOS)"
 ONEDRIVE_LINK   = "https://tecadi-my.sharepoint.com/:x:/g/personal/rafael_alves_tecadi_com_br/EaJshSFavb5Pv8z_dpW3ZWwB8cAXsuPSrGyYoAB7ye11Aw"
 
 SHEET_NAME      = "PROCESSOS S.LEITURA"
@@ -25,7 +25,8 @@ CLIENTE_FIXO    = "SPRINGER CARRIER LTDA (MIDEA)."
 CONTEUDO_FIXO   = "CHEIO"
 PRODUTO_TITULO  = "FAST CIF/FOB"
 FORM_COD        = "FM 108"
-FORM_REV        = "00"
+FORM_REV        = "01"
+FORM_ISO_DATE   = "02/10/2025"  # <<< data fixa do quadro "Romaneio" no PDF
 
 BG_IMAGE_PATH   = "fundoapp.jpg"      # fundo do APP
 LOGO_IMAGE_PATH = "logo_tecadi.png"   # logo no PDF (fundo do PDF é branco)
@@ -146,9 +147,10 @@ def draw_header(c: canvas.Canvas, data_cabecalho: datetime, page_w, page_h):
     c.drawCentredString(box_x + box_w/2, box_y + box_h - 0.9*cm, "Romaneio")
 
     c.setFont("Helvetica", 10.5)
-    c.drawRightString(box_x + box_w - 0.3*cm, box_y + box_h - 1.55*cm, f"Cód.: {FORM_COD}")
-    c.drawRightString(box_x + box_w - 0.3*cm, box_y + box_h - 2.10*cm, f"Rev.: {FORM_REV}")
-    c.drawRightString(box_x + box_w - 0.3*cm, box_y + 0.55*cm,               f"Data: {data_cabecalho.strftime('%d/%m/%Y')}")
+    c.drawRightString(box_x + box_w - 0.3*cm, box_y + box_h - 1.70*cm, f"Cód.: {FORM_COD}")
+    c.drawRightString(box_x + box_w - 0.3*cm, box_y + box_h - 2.05*cm, f"Rev.: {FORM_REV}")
+    # >>> Data fixa da revisão no QUADRO (não usa data_cabecalho)
+    c.drawRightString(box_x + box_w - 0.3*cm, box_y + 0.55*cm,               f"Data: {FORM_ISO_DATE}")
 
 def draw_info_section(c, info, page_w, page_h):
     title_h = 1.1*cm
@@ -241,7 +243,7 @@ def gerar_pdf_row(row: pd.Series, data_cabecalho: datetime) -> bytes:
     draw_header(c, data_cabecalho, page_w, page_h)
 
     info = {
-        "DATA": data_cabecalho.strftime("%d/%m/%Y"),
+        "DATA": data_cabecalho.strftime("%d/%m/%Y"),   # << variável (verde)
         "CONTEUDO": CONTEUDO_FIXO,
         "CLIENTE": CLIENTE_FIXO,
         "TRANSPORTADORA": str_or_default(row, "TRANSPORTADORA"),
@@ -302,6 +304,13 @@ set_app_background(BG_IMAGE_PATH)
 
 st.title("🧾 Tecadi: Romaneio Manual — FG V1")
 st.caption("Gerador de PDFs dos FASTFOBS/CIFS STATUS = FINALIZADO.")
+# <<< LINHA NOVA: mostra Cód./Rev. logo abaixo do caption
+st.markdown(
+    "<div style='margin-top:-6px; font-size:0.95rem; opacity:0.9;'>"
+    "Cód.: <b>FM 108</b> &nbsp;•&nbsp; Rev.: <b>01</b>"
+    "</div>",
+    unsafe_allow_html=True,
+)
 
 # Data PT-BR
 default_data = date.today().strftime("%d/%m/%Y")
@@ -317,9 +326,9 @@ except Exception:
 
 col_a, col_b = st.columns([1,1])
 with col_a:
-    bt_atualizar = st.button("🔄 Atualizar informações do OneDrive", use_container_width=True)
+    bt_atualizar = st.button("🔄 Atualizar Finalizados", use_container_width=True)
 with col_b:
-    bt_gerar = st.button("🧾 Gerar PDFs (FINALIZADO)", use_container_width=True)
+    bt_gerar = st.button("🧾 Gerar PDFs (FINALIZADOS)", use_container_width=True)
 
 if "df_cache" not in st.session_state: st.session_state.df_cache = None
 if "fetch_error" not in st.session_state: st.session_state.fetch_error = None
