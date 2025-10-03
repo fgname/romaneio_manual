@@ -26,7 +26,7 @@ CONTEUDO_FIXO   = "CHEIO"
 PRODUTO_TITULO  = "FAST CIF/FOB"
 FORM_COD        = "FM 108"
 FORM_REV        = "01"
-FORM_ISO_DATE   = "02/10/2025"  # <<< data fixa do quadro "Romaneio" no PDF
+FORM_ISO_DATE   = "02/10/2025"  # data fixa do quadro "Romaneio" no PDF
 
 BG_IMAGE_PATH   = "fundoapp.jpg"      # fundo do APP
 LOGO_IMAGE_PATH = "logo_tecadi.png"   # logo no PDF (fundo do PDF é branco)
@@ -107,7 +107,7 @@ ROUND_R    = 8
 
 # RESPIROS/ESPACOS
 GAP_AFTER_INFO_TITLE = 0.60*cm    # espaço entre “Informações:” e DATA
-GAP_AFTER_FAST_TITLE = 0.60*cm    # espaço entre “FAST CIF/FOB” e CNTR(ORIGEM)
+GAP_AFTER_FAST_TITLE = 0.60*cm    # espaço entre título e primeira linha
 SIG_DELTA_DOWN       = 1.50*cm    # assinaturas mais para baixo
 TITLE_SHIFT_LEFT     = 0.50*cm    # título Romaneio Manual 0,5 cm para a esquerda
 
@@ -149,7 +149,7 @@ def draw_header(c: canvas.Canvas, data_cabecalho: datetime, page_w, page_h):
     c.setFont("Helvetica", 10.5)
     c.drawRightString(box_x + box_w - 0.3*cm, box_y + box_h - 1.70*cm, f"Cód.: {FORM_COD}")
     c.drawRightString(box_x + box_w - 0.3*cm, box_y + box_h - 2.05*cm, f"Rev.: {FORM_REV}")
-    # >>> Data fixa da revisão no QUADRO (não usa data_cabecalho)
+    # Data fixa no quadro
     c.drawRightString(box_x + box_w - 0.3*cm, box_y + 0.55*cm,               f"Data: {FORM_ISO_DATE}")
 
 def draw_info_section(c, info, page_w, page_h):
@@ -179,17 +179,19 @@ def draw_info_section(c, info, page_w, page_h):
     ]
     for rot, val in rows:
         c.drawString(COL_LABEL_X, y, rot)
+        # valores
         c.setFont("Helvetica", 12); c.drawString(COL_VALUE_X, y, str(val)); c.setFont("Helvetica-Bold", 12)
         y -= STEP_Y
 
     return bottom_y - 0.9*cm
 
-def draw_products_section(c, prod_info, start_y, page_w):
+def draw_products_section(c, prod_info, start_y, page_w, titulo=PRODUTO_TITULO, show_fields=True):
+    """show_fields=False -> usa apenas 'LISTA' ou apenas um campo customizado (caso LEILÃO)."""
     title_h = 1.0*cm
-    fields_h = 4*STEP_Y
-    lista_h  = 5.0*cm
+    fields_h = 4*STEP_Y if show_fields else 1*STEP_Y
+    lista_h  = 5.0*cm if show_fields else 0  # p/ LEILÃO não precisamos da área de lista
     pad_top, pad_bottom = 0.5*cm, 0.6*cm
-    gap_fields_lista = 0.35*cm
+    gap_fields_lista = 0.35*cm if show_fields else 0
 
     sec_h = title_h + pad_top + GAP_AFTER_FAST_TITLE + fields_h + gap_fields_lista + lista_h + pad_bottom
     bottom_y = start_y - sec_h
@@ -198,36 +200,42 @@ def draw_products_section(c, prod_info, start_y, page_w):
     c.roundRect(MARGIN_L, bottom_y, page_w - MARGIN_L - MARGIN_R, sec_h, ROUND_R, stroke=1, fill=0)
 
     c.setFont("Helvetica-Bold", 18)
-    c.drawString(MARGIN_L + 0.7*cm, start_y - 0.8*cm, PRODUTO_TITULO)
+    c.drawString(MARGIN_L + 0.7*cm, start_y - 0.8*cm, titulo)
 
     y = start_y - title_h - GAP_AFTER_FAST_TITLE
     c.setFont("Helvetica-Bold", 12)
-    fields = [
-        ("CNTR(ORIGEM):", prod_info.get("CNTR_ORIGEM","")),
-        ("CNTR(TECADI):", prod_info.get("CNTR_TECADI","")),
-        ("SKU:",          prod_info.get("SKU","")),
-        ("QTD:",          prod_info.get("QTD","")),
-    ]
-    for rot, val in fields:
+
+    if show_fields:
+        fields = [
+            ("CNTR(ORIGEM):", prod_info.get("CNTR_ORIGEM","")),
+            ("CNTR(TECADI):", prod_info.get("CNTR_TECADI","")),
+            ("SKU:",          prod_info.get("SKU","")),
+            ("QTD:",          prod_info.get("QTD","")),
+        ]
+        for rot, val in fields:
+            c.drawString(COL_LABEL_X, y, rot)
+            c.setFont("Helvetica", 12); c.drawString(COL_VALUE_X, y, str(val)); c.setFont("Helvetica-Bold", 12)
+            y -= STEP_Y
+
+        y -= gap_fields_lista
+        c.drawString(COL_LABEL_X, y, "LISTA:")
+        y -= 0.3*cm
+        lista_texto = str(prod_info.get("LISTA","")).replace(" ;", ";").replace("  ", " ")
+        style = ParagraphStyle(name="lista", fontName="Helvetica", fontSize=12, leading=14, textColor=colors.black)
+        para = Paragraph(lista_texto, style=style)
+
+        frame_x = COL_LABEL_X
+        frame_y = bottom_y + pad_bottom + 0.2*cm
+        frame_w = page_w - MARGIN_R - frame_x
+        frame_h = lista_h
+        Frame(frame_x, frame_y, frame_w, frame_h, showBoundary=0).addFromList([para], c)
+    else:
+        # LEILÃO: apenas CNTR(TECADI)
+        rot, val = "CNTR(TECADI):", prod_info.get("CNTR_TECADI","")
         c.drawString(COL_LABEL_X, y, rot)
         c.setFont("Helvetica", 12); c.drawString(COL_VALUE_X, y, str(val)); c.setFont("Helvetica-Bold", 12)
-        y -= STEP_Y
 
-    y -= gap_fields_lista
-    c.drawString(COL_LABEL_X, y, "LISTA:")
-    y -= 0.3*cm
-
-    lista_texto = str(prod_info.get("LISTA","")).replace(" ;", ";").replace("  ", " ")
-    style = ParagraphStyle(name="lista", fontName="Helvetica", fontSize=12, leading=14, textColor=colors.black)
-    para = Paragraph(lista_texto, style=style)
-
-    frame_x = COL_LABEL_X
-    frame_y = bottom_y + pad_bottom + 0.2*cm
-    frame_w = page_w - MARGIN_R - frame_x
-    frame_h = lista_h
-    Frame(frame_x, frame_y, frame_w, frame_h, showBoundary=0).addFromList([para], c)
-
-    # Assinaturas (mais para baixo)
+    # Assinaturas
     sig_y = 2.6*cm - SIG_DELTA_DOWN
     c.setStrokeColor(colors.black); c.setLineWidth(1)
     c.line(2*cm, sig_y, 9*cm, sig_y); c.line(11*cm, sig_y, 18*cm, sig_y)
@@ -236,6 +244,7 @@ def draw_products_section(c, prod_info, start_y, page_w):
     c.drawCentredString(14.5*cm, sig_y - 0.45*cm, "ASS: CONFERENTE")
 
 def gerar_pdf_row(row: pd.Series, data_cabecalho: datetime) -> bytes:
+    """FASTFOB/CIF (planilha)"""
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     page_w, page_h = A4
@@ -243,7 +252,7 @@ def gerar_pdf_row(row: pd.Series, data_cabecalho: datetime) -> bytes:
     draw_header(c, data_cabecalho, page_w, page_h)
 
     info = {
-        "DATA": data_cabecalho.strftime("%d/%m/%Y"),   # << variável (verde)
+        "DATA": data_cabecalho.strftime("%d/%m/%Y"),   # variável (verde)
         "CONTEUDO": CONTEUDO_FIXO,
         "CLIENTE": CLIENTE_FIXO,
         "TRANSPORTADORA": str_or_default(row, "TRANSPORTADORA"),
@@ -259,7 +268,33 @@ def gerar_pdf_row(row: pd.Series, data_cabecalho: datetime) -> bytes:
         "QTD":         format_qtd(str_or_default(row, "QTD")),
         "LISTA":       str_or_default(row, "LISTA"),
     }
-    draw_products_section(c, prod, next_y, page_w)
+    draw_products_section(c, prod, next_y, page_w, titulo=PRODUTO_TITULO, show_fields=True)
+
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return buf.read()
+
+def gerar_pdf_leilao(data_pdf: datetime, cntr_tecadi: str, placas: str, motorista: str) -> bytes:
+    """LEILÃO (formulário)"""
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    page_w, page_h = A4
+
+    draw_header(c, data_pdf, page_w, page_h)
+
+    info = {
+        "DATA": data_pdf.strftime("%d/%m/%Y"),
+        "CONTEUDO": CONTEUDO_FIXO,
+        "CLIENTE": CLIENTE_FIXO,
+        "TRANSPORTADORA": "LEILÃO",
+        "MOTORISTA": motorista.strip(),
+        "PLACA": placas.strip(),
+    }
+    next_y = draw_info_section(c, info, page_w, page_h)
+
+    prod = {"CNTR_TECADI": cntr_tecadi.strip()}
+    draw_products_section(c, prod, next_y, page_w, titulo="LEILÃO", show_fields=False)
 
     c.showPage()
     c.save()
@@ -292,19 +327,71 @@ def set_app_background(image_path: str):
             padding: 24px 28px;
             color: #fff !important;
         }}
+        /* Inputs com texto preto */
         .stTextInput>div>div>input {{ color:#000 !important; background:#fff !important; }}
+        .stDateInput input {{ color:#000 !important; background:#fff !important; }}
+        .stSelectbox [data-baseweb="select"] input {{ color:#000 !important; }}
+
+        /* >>> Labels BRANCOS e negrito (todos os campos) */
+        .stTextInput label,
+        .stDateInput label,
+        .stSelectbox label,
+        .stNumberInput label,
+        .stMultiSelect label,
+        .stRadio > label,
+        .stCheckbox > label {{
+            color:#fff !important;
+            font-weight:600 !important;
+        }}
+
+        /* Botões padrão */
         .stButton>button, .stDownloadButton>button {{
             color:#000 !important; background:#fff !important;
             border:1px solid #ccc !important; border-radius:10px; padding:8px 16px; font-weight:700;
+        }}
+
+        /* >>> Botão de submit dentro de st.form (Gerar PDF - LEILÃO) */
+        .stFormSubmitButton>button {{
+            color:#000 !important; background:#fff !important;
+            border:1px solid #ccc !important; border-radius:10px; padding:8px 16px; font-weight:800;
+        }}
+
+        /* Abas do switch */
+        .mode-tabs button {{
+            border:2px solid #cfe6ff !important; border-radius:8px !important;
+            background: transparent !important; color:#e9f2ff !important; font-weight:800 !important;
+            width:100%; padding:6px 0 !important;
+        }}
+        .mode-tabs .active button {{
+            background:#0f3a5a !important; color:#fff !important; border-color:#fff !important;
         }}
         </style>
     """, unsafe_allow_html=True)
 
 set_app_background(BG_IMAGE_PATH)
 
+# ============ TOP SWITCH (FASTFOB/CIF x LEILÃO)
+if "mode" not in st.session_state:
+    st.session_state.mode = "FASTFOB"
+
+colm1, colm2 = st.columns(2)
+with colm1:
+    active = (st.session_state.mode == "FASTFOB")
+    css = "mode-tabs active" if active else "mode-tabs"
+    st.markdown(f"<div class='{css}'>", unsafe_allow_html=True)
+    if st.button("FASTFOB / CIF", use_container_width=True):
+        st.session_state.mode = "FASTFOB"
+    st.markdown("</div>", unsafe_allow_html=True)
+with colm2:
+    active = (st.session_state.mode == "LEILAO")
+    css = "mode-tabs active" if active else "mode-tabs"
+    st.markdown(f"<div class='{css}'>", unsafe_allow_html=True)
+    if st.button("LEILÃO", use_container_width=True):
+        st.session_state.mode = "LEILAO"
+    st.markdown("</div>", unsafe_allow_html=True)
+
 st.title("🧾 Tecadi: Romaneio Manual — FG V1")
 st.caption("Gerador de PDFs dos FASTFOBS/CIFS STATUS = FINALIZADO.")
-# <<< LINHA NOVA: mostra Cód./Rev. logo abaixo do caption
 st.markdown(
     "<div style='margin-top:-6px; font-size:0.95rem; opacity:0.9;'>"
     "Cód.: <b>FM 108</b> &nbsp;•&nbsp; Rev.: <b>01</b>"
@@ -312,7 +399,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Data PT-BR
+# Data PT-BR (usada por ambos os modos)
 default_data = date.today().strftime("%d/%m/%Y")
 data_str = st.text_input("Data do cabeçalho do PDF (dd/mm/aaaa)", value=default_data)
 def parse_data_ptbr(s: str) -> datetime:
@@ -324,120 +411,143 @@ except Exception:
     st.error("Informe a data no formato dd/mm/aaaa.")
     st.stop()
 
-col_a, col_b = st.columns([1,1])
-with col_a:
-    bt_atualizar = st.button("🔄 Atualizar Finalizados", use_container_width=True)
-with col_b:
-    bt_gerar = st.button("🧾 Gerar PDFs (FINALIZADOS)", use_container_width=True)
+# ==========================
+# MODO FASTFOB/CIF
+# ==========================
+if st.session_state.mode == "FASTFOB":
+    col_a, col_b = st.columns([1,1])
+    with col_a:
+        bt_atualizar = st.button("🔄 Atualizar Finalizados", use_container_width=True)
+    with col_b:
+        bt_gerar = st.button("🧾 Gerar PDFs (FINALIZADOS)", use_container_width=True)
 
-if "df_cache" not in st.session_state: st.session_state.df_cache = None
-if "fetch_error" not in st.session_state: st.session_state.fetch_error = None
+    if "df_cache" not in st.session_state: st.session_state.df_cache = None
+    if "fetch_error" not in st.session_state: st.session_state.fetch_error = None
 
-if bt_atualizar:
-    try:
-        xls_bytes = onedrive_direct_download(ONEDRIVE_LINK)
-        st.session_state.df_cache = load_excel_from_bytes(xls_bytes)
-        st.session_state.fetch_error = None
-        # opcional: ao atualizar, limpa seleção anterior
-        # st.session_state["selected_keys"] = []
-    except Exception as e:
-        st.session_state.df_cache = None
-        st.session_state.fetch_error = str(e)
+    if bt_atualizar:
+        try:
+            xls_bytes = onedrive_direct_download(ONEDRIVE_LINK)
+            st.session_state.df_cache = load_excel_from_bytes(xls_bytes)
+            st.session_state.fetch_error = None
+        except Exception as e:
+            st.session_state.df_cache = None
+            st.session_state.fetch_error = str(e)
 
-if st.session_state.fetch_error:
-    st.error("Falha ao baixar do OneDrive: " + st.session_state.fetch_error)
+    if st.session_state.fetch_error:
+        st.error("Falha ao baixar do OneDrive: " + st.session_state.fetch_error)
 
-# Resumo enxuto em tela
-if st.session_state.df_cache is not None:
-    df = st.session_state.df_cache
-    df_fin = df[df["STATUS"].astype(str).str.upper().eq("FINALIZADO")].copy()
+    if st.session_state.df_cache is not None:
+        df = st.session_state.df_cache
+        df_fin = df[df["STATUS"].astype(str).str.upper().eq("FINALIZADO")].copy()
 
-    st.markdown(f"### ✅ FAST FOB finalizados: **{len(df_fin)}**")
+        st.markdown(f"### ✅ FAST FOB finalizados: **{len(df_fin)}**")
 
-    cols_view = ["DEMANDA","TRANSPORTADORA","NOME","PLACA","LISTA"]
-    cols_existing = [c for c in cols_view if c in df_fin.columns]
-    if cols_existing:
-        df_view = df_fin[cols_existing].copy()
-        for c in df_view.columns:
-            df_view[c] = df_view[c].astype("string")
-        st.dataframe(df_view.reset_index(drop=True), use_container_width=True, hide_index=True)
-    else:
-        st.warning("Não encontrei as colunas esperadas para exibição (DEMANDA, TRANSPORTADORA, NOME, PLACA, LISTA).")
+        cols_view = ["DEMANDA","TRANSPORTADORA","NOME","PLACA","LISTA"]
+        cols_existing = [c for c in cols_view if c in df_fin.columns]
+        if cols_existing:
+            df_view = df_fin[cols_existing].copy()
+            for c in df_view.columns:
+                df_view[c] = df_view[c].astype("string")
+            st.dataframe(df_view.reset_index(drop=True), use_container_width=True, hide_index=True)
+        else:
+            st.warning("Não encontrei as colunas esperadas para exibição (DEMANDA, TRANSPORTADORA, NOME, PLACA, LISTA).")
 
-    # ==========================
-    # SELEÇÃO MANUAL (NOVO)
-    # ==========================
-    def _make_key(row: pd.Series) -> str:
-        demanda_raw = str(row.get("DEMANDA", ""))
-        m = re.search(r"(\d+)", demanda_raw)
-        demanda_num = m.group(1) if m else demanda_raw
-        # se quiser diferenciar por LISTA também, inclua: + '|' + str(row.get("LISTA",""))
-        return f"{demanda_num}|{str(row.get('ARMADOR',''))}"
-
-    df_fin = df_fin.copy()
-    df_fin["_key"] = df_fin.apply(_make_key, axis=1)
-
-    labels = {}
-    for _, r in df_fin.iterrows():
-        label = " — ".join([
-            str(r.get("DEMANDA","")),
-            str(r.get("ARMADOR","")),
-            str(r.get("TRANSPORTADORA","")),
-            str(r.get("NOME","")),
-            str(r.get("PLACA","")),
-            str(r.get("LISTA","")),
-        ])
-        labels[r["_key"]] = label
-
-    selected_keys = st.multiselect(
-        "Selecione as linhas que deseja gerar (opcional)",
-        options=list(labels.keys()),
-        format_func=lambda k: labels[k],
-        placeholder="Escolha um Carregamento",
-    )
-    st.session_state["selected_keys"] = selected_keys
-
-if bt_gerar:
-    df = st.session_state.df_cache
-    if df is None:
-        st.error("Clique em **Atualizar informações do OneDrive** primeiro.")
-    else:
-        df_ok = df[df["STATUS"].astype(str).str.upper().eq("FINALIZADO")].copy()
-
-        # === aplica filtro pela seleção manual (se houver) ===
+        # seleção manual
         def _make_key(row: pd.Series) -> str:
             demanda_raw = str(row.get("DEMANDA", ""))
             m = re.search(r"(\d+)", demanda_raw)
             demanda_num = m.group(1) if m else demanda_raw
             return f"{demanda_num}|{str(row.get('ARMADOR',''))}"
 
-        df_ok["_key"] = df_ok.apply(_make_key, axis=1)
-        selected = st.session_state.get("selected_keys") or []
-        if selected:
-            df_ok = df_ok[df_ok["_key"].isin(selected)]
+        df_fin = df_fin.copy()
+        df_fin["_key"] = df_fin.apply(_make_key, axis=1)
 
-        faltam = [c for c in REQUIRED_FOR_PDF if c not in df_ok.columns]
-        if faltam:
-            st.error("Faltam colunas obrigatórias: " + ", ".join(faltam))
-        elif df_ok.empty:
-            st.warning("Nenhuma linha com STATUS = FINALIZADO (ou nada selecionado).")
+        labels = {}
+        for _, r in df_fin.iterrows():
+            label = " — ".join([
+                str(r.get("DEMANDA","")),
+                str(r.get("ARMADOR","")),
+                str(r.get("TRANSPORTADORA","")),
+                str(r.get("NOME","")),
+                str(r.get("PLACA","")),
+                str(r.get("LISTA","")),
+            ])
+            labels[r["_key"]] = label
+
+        selected_keys = st.multiselect(
+            "Selecione as linhas que deseja gerar (opcional)",
+            options=list(labels.keys()),
+            format_func=lambda k: labels[k],
+            placeholder="Escolha um Carregamento",
+        )
+        st.session_state["selected_keys"] = selected_keys
+
+    if st.session_state.mode == "FASTFOB" and 'bt_gerar' in locals() and bt_gerar:
+        df = st.session_state.df_cache
+        if df is None:
+            st.error("Clique em **Atualizar Finalizados** primeiro.")
         else:
-            zip_buf = io.BytesIO()
-            with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                for i, row in df_ok.iterrows():
-                    try:
-                        pdf_bytes = gerar_pdf_row(row, data_pdf)
-                        demanda_raw = str_or_default(row, "DEMANDA")
-                        m = re.search(r"(\d+)", demanda_raw); demanda_num = m.group(1) if m else demanda_raw
-                        armador = str_or_default(row, "ARMADOR")
-                        fname = f"{demanda_num}.{armador}.pdf"
-                        zf.writestr(fname, pdf_bytes)
-                    except Exception as e:
-                        zf.writestr(f"ERRO_{i}.txt", f"Falha na linha {i}: {repr(e)}")
-            zip_buf.seek(0)
+            df_ok = df[df["STATUS"].astype(str).str.upper().eq("FINALIZADO")].copy()
+
+            def _make_key(row: pd.Series) -> str:
+                demanda_raw = str(row.get("DEMANDA", ""))
+                m = re.search(r"(\d+)", demanda_raw)
+                demanda_num = m.group(1) if m else demanda_raw
+                return f"{demanda_num}|{str(row.get('ARMADOR',''))}"
+
+            df_ok["_key"] = df_ok.apply(_make_key, axis=1)
+            selected = st.session_state.get("selected_keys") or []
+            if selected:
+                df_ok = df_ok[df_ok["_key"].isin(selected)]
+
+            faltam = [c for c in REQUIRED_FOR_PDF if c not in df_ok.columns]
+            if faltam:
+                st.error("Faltam colunas obrigatórias: " + ", ".join(faltam))
+            elif df_ok.empty:
+                st.warning("Nenhuma linha com STATUS = FINALIZADO (ou nada selecionado).")
+            else:
+                zip_buf = io.BytesIO()
+                with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for i, row in df_ok.iterrows():
+                        try:
+                            pdf_bytes = gerar_pdf_row(row, data_pdf)
+                            demanda_raw = str_or_default(row, "DEMANDA")
+                            m = re.search(r"(\d+)", demanda_raw); demanda_num = m.group(1) if m else demanda_raw
+                            armador = str_or_default(row, "ARMADOR")
+                            fname = f"{demanda_num}.{armador}.pdf"
+                            zf.writestr(fname, pdf_bytes)
+                        except Exception as e:
+                            zf.writestr(f"ERRO_{i}.txt", f"Falha na linha {i}: {repr(e)}")
+                zip_buf.seek(0)
+                st.download_button(
+                    "⬇️ Baixar ZIP com PDFs",
+                    data=zip_buf,
+                    file_name=f"romaneios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                    mime="application/zip"
+                )
+
+# ==========================
+# MODO LEILÃO (formulário simples)
+# ==========================
+if st.session_state.mode == "LEILAO":
+    st.subheader("🧾 Emissão de PDF — LEILÃO")
+    with st.form("form_leilao", clear_on_submit=False):
+        col1, col2 = st.columns([1,1])
+        with col1:
+            cntr_tecadi = st.text_input("CNTR (TECADI)", value="", placeholder="Ex.: Insira o Container")
+            motorista   = st.text_input("Motorista", value="", placeholder="Nome completo")
+        with col2:
+            placas      = st.text_input("Placas", value="", placeholder="Ex.: ABC1234 / ABC1234")
+        gerar = st.form_submit_button("Gerar PDF (LEILÃO)")
+
+    if gerar:
+        if not cntr_tecadi.strip():
+            st.error("Informe o **CNTR (TECADI)**.")
+        else:
+            pdf = gerar_pdf_leilao(data_pdf, cntr_tecadi, placas, motorista)
             st.download_button(
-                "⬇️ Baixar ZIP com PDFs",
-                data=zip_buf,
-                file_name=f"romaneios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-                mime="application/zip"
+                "⬇️ Baixar PDF do LEILÃO",
+                data=pdf,
+                file_name=f"LEILAO.{cntr_tecadi.strip()}.pdf",
+                mime="application/pdf"
             )
